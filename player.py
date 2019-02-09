@@ -35,18 +35,6 @@ class Player(pygame.sprite.Sprite):
         Player.players[self.number] = self  # store myself into the Enemy dictionary
         #  print("my number %i Player number %i " % (self.number, Player.number))
 
-    def collide(self, spriteGroup):
-        if pygame.sprite.spritecollide(self, spriteGroup, False):
-            self.remove = True
-
-    def enemy_detection(self):
-        self.colour_circle = (255, 0, 0)
-        self.image = pygame.Surface((100, 100))  # created on the fly
-        self.image.set_colorkey((0, 0, 0))  # black transparent
-        pygame.draw.circle(self.image, self.colour_circle, (50, 50), 50, 2)  # red circle
-        self.image = self.image.convert_alpha()
-        self.rect = self.image.get_rect()
-
     def kill(self):
         # Show Game Over image
         self.image = Player.image[1]
@@ -64,24 +52,35 @@ class Player(pygame.sprite.Sprite):
         """
         return 10 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
-    def move(self, pixels=10):
+    def move(self, pixels=10, ai_decision=None):
         """ Handles Keys """
-        key = pygame.key.get_pressed()
-        # distance moved in 1 frame, try changing it
-        if key[pygame.K_DOWN]:  # down key
-            self.y_pos += pixels  # move down
-        elif key[pygame.K_UP]:  # up key
-            self.y_pos -= pixels  # move up
-        if key[pygame.K_RIGHT]:  # right key
-            self.x_pos += pixels  # move right
-        elif key[pygame.K_LEFT]:  # left key
-            self.x_pos -= pixels  # move left
+        if ai_decision is not None:
+            if ai_decision == 0:
+                self.y_pos += pixels  # Move down
+            elif ai_decision == 1:
+                self.y_pos -= pixels  # Move up
+            elif ai_decision == 2:
+                self.x_pos += pixels  # Move right
+            elif ai_decision == 3:
+                self.x_pos -= pixels  # Move left
+        else:
+            key = pygame.key.get_pressed()
+            # distance moved in 1 frame, try changing it
+            if key[pygame.K_DOWN]:  # down key
+                self.y_pos += pixels  # move down
+            elif key[pygame.K_UP]:  # up key
+                self.y_pos -= pixels  # move up
+            if key[pygame.K_RIGHT]:  # right key
+                self.x_pos += pixels  # move right
+            elif key[pygame.K_LEFT]:  # left key
+                self.x_pos -= pixels  # move left
 
-    def update(self, time_alive):
+    def update(self, time_alive, ai_decision=None):
         """
         Function called when
         :param time_alive: Argument must be provided when pygame.sprite.Group.update(*args) is called on this group
         This parameter represents the time passed since the last call to update()
+        :param ai_decision: Integer
         :return: None
         """
         # -- Check if Game Over --
@@ -89,7 +88,7 @@ class Player(pygame.sprite.Sprite):
             self.image = Player.image[1]
             self.kill()  # Game over
         # -- Move player --
-        self.move(pixels=self.step_size)
+        self.move(pixels=self.step_size, ai_decision=ai_decision)
         # ---- Updated coordinates for player hitbox
         self.rect.centerx = round(self.x_pos, 0)
         self.rect.centery = round(self.y_pos, 0)

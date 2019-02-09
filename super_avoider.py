@@ -2,9 +2,11 @@ import os
 import time
 import pygame
 import random
+import numpy as np
 from enemy import Enemy
 from player import Player
 from enemy_detection import EnemyDetection
+from super_avoider_AI import SuperAvoiderAI
 
 
 class SuperAvoider:
@@ -49,12 +51,12 @@ class SuperAvoider:
         self.background.blit(self.write("Press P to (un)pause"), (self.W_WIDTH - 225, 10))
         self.background.convert()
         self.screen.blit(self.background, (0, 0))
-        # ---- Start the game ----
         # Make images suitable for quick blitting, i.e drawn quickly on screen
         for i, _ in enumerate(Enemy.image):
             Enemy.image[i] = Enemy.image[i].convert_alpha()
         for i, _ in enumerate(Player.image):
             Player.image[i] = Player.image[i].convert_alpha()
+        # ---- Start the game ----
         self.start_game()
 
     def write(self, msg="pygame is cool", style=None, size=32, colour=(0, 0, 0)):
@@ -97,19 +99,18 @@ class SuperAvoider:
             pos = (random.random() * self.W_WIDTH / 2, random.random() * self.W_HEIGHT / 2)
             Enemy(pos, self.background)
 
-    def spawn_player(self, pop=1):
+    def spawn_player(self):
         """
         Spawn player on the board
         Players spawn in the 4th quadrant of the game display
-        :param pop: number of players
         :return:
         """
-        for individual in range(pop):
-            colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
-            pos = (self.W_WIDTH / 2 + random.random() * self.W_WIDTH / 2,
-                   self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
-            p1 = Player(start_pos=pos, game_display=self.background)
-            EnemyDetection(colour=colour, starting_pos=pos, size=5 * p1.rect.width)
+        colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
+        pos = (self.W_WIDTH / 2 + random.random() * self.W_WIDTH / 2,
+               self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
+        player = Player(start_pos=pos, game_display=self.background)
+        EnemyDetection(colour=colour, starting_pos=pos, size=5 * player.rect.width)
+        return player
 
     def respown(self):
         colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
@@ -168,6 +169,30 @@ class SuperAvoider:
         Player.groups = self.player_group, self.all_sprites_group
         EnemyDetection.groups = self.detection_group, self.all_sprites_group
 
+    def AI_input(self, player, enemy_group=None):
+        """
+        Create 1D array consisting of all player and enemy positions. Scaled by game windows width and height
+        The first 2 entries are always the players x and y position
+        :param player:
+        :param enemy_group:
+        :return: 1D numpy array [rect.centerx_1, rect.centery_1, ...]
+        """
+        sprite_positions = np.zeros((self.input_size,))  # 1D array of all x and y pos
+        sprite_positions[0] = player.rect.centerx / self.W_WIDTH
+        sprite_positions[1] = player.rect.centery / self.W_HEIGHT
+        if enemy_group is not None:
+            for i, enemy in enumerate(enemy_group):
+                sprite_positions[i + 1] = enemy.rect.centerx / self.W_WIDTH
+                sprite_positions[i + 2] = enemy.rect.centery / self.W_HEIGHT
+            sprite_positions.shape = (1, -1)
+            return sprite_positions
+        else:
+            for i, enemy in enumerate(self.enemy_group):
+                sprite_positions[i + 1] = enemy.rect.centerx / self.W_WIDTH
+                sprite_positions[i + 2] = enemy.rect.centery / self.W_HEIGHT
+            sprite_positions.shape = (1, -1)
+            return sprite_positions
+
     def start_game(self):
         """
         Main method to run game
@@ -178,8 +203,12 @@ class SuperAvoider:
         # -- Create sprite groups --
         self.make_sprite_groups()
         # -- Create player and enemies
-        self.spawn_enemies(50)
-        self.spawn_player(1)
+        self.spawn_enemies(20)
+        player = self.spawn_player()
+        # -- Create AI
+        self.input_size = 2 * (1 + len(self.enemy_group))
+        player_ai = SuperAvoiderAI(input_shape=(self.input_size,), neurons_layer=[10, 10, 5],
+                                   activations=["relu", "relu", "softmax"])
         # -------- Main Program Loop ---------
         self.mainloop = True
         while self.mainloop:
@@ -187,8 +216,9 @@ class SuperAvoider:
             # ***** Main Event Loop *****
             self.event_handle()
             # *****  Game logic  *****
-            if pygame.mouse.get_pressed()[0]:
-                Enemy(pygame.mouse.get_pos(), self.background)
+            # -- Spawn enemies with mouse
+#            if pygame.mouse.get_pressed()[0]:
+#                Enemy(pygame.mouse.get_pos(), self.background)
             # ---- collision detection ----
             for enemy in self.enemy_group:
                 enemy.detected = False  # set all Enemy sprites to not detected
@@ -222,7 +252,10 @@ class SuperAvoider:
             if self.player_group:
                 for player in self.player_group:
                     self.detection_group.update((player.rect.centerx, player.rect.centery))
-            self.player_group.update(seconds_passed)
+            # -- AI move --
+            data = self.AI_input(player, detected_dict)
+            ai_decision = player_ai.get_predict(data, classify=True)[0]
+            self.player_group.update(seconds_passed, ai_decision)
             self.enemy_group.update(seconds_passed)  # arg = seconds since last call
             # Draws the contained Sprites to the Surface argument.
             # This uses the Sprite.image attribute for the source surface, and Sprite.rect for the position.

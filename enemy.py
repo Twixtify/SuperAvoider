@@ -1,5 +1,6 @@
 import random
 import pygame
+from numpy import sqrt
 
 
 class Enemy(pygame.sprite.Sprite):
@@ -27,7 +28,8 @@ class Enemy(pygame.sprite.Sprite):
         # Save image size as a rectangular area object
         self.rect = self.image.get_rect(center=(round(self.x_pos), round(self.y_pos)))
         # ---- Flag for Game Over
-        self.new_speed("gauss")
+        self.vx = random.choice([-1, 1]) * random.random() * self.step_size()
+        self.vy = random.choice([-1, 1]) * sqrt(self.step_size()*self.step_size() - self.vx*self.vx)
         self.detected = False
         # ---- Update static variables -----
         self.number = Enemy.number  # get my personal Enemy number
@@ -40,7 +42,7 @@ class Enemy(pygame.sprite.Sprite):
         Return automatic step size
         :return:
         """
-        return 100 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
+        return 400 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
     def new_pos(self, pos):
         """
@@ -53,9 +55,11 @@ class Enemy(pygame.sprite.Sprite):
         self.rect.centerx = round(self.x_pos, 0)
         self.rect.centery = round(self.y_pos, 0)
 
-    def new_speed(self, method="uniform"):
+    def new_speed(self, bounce, method="uniform"):
         """
         Calculate the new speed of Enemy sprite. Will not be 0.
+        :param bounce: Integer, to know which wall sprite hit
+        :param method: String
         :return:
         """
         random_direction = random.choice([-1, 1])  # +1 or -1
@@ -63,8 +67,10 @@ class Enemy(pygame.sprite.Sprite):
             self.vx = random_direction * random.random() * self.speed_max + random_direction
             self.vy = random_direction * random.random() * self.speed_max + random_direction
         elif method is "constant":
-            self.vx = random_direction * self.speed_max
-            self.vy = random_direction * self.speed_max
+            if bounce == 0 or bounce == 1:
+                self.vy *= -1
+            if bounce == 2 or bounce == 3:
+                self.vx *= -1
         elif method is "gauss":
             self.vx = random_direction * random.gauss(0, 1) * self.speed_max + random_direction
             self.vy = random_direction * random.gauss(0, 1) * self.speed_max + random_direction
@@ -87,20 +93,21 @@ class Enemy(pygame.sprite.Sprite):
         # -- check if out of screen
         if not self.area.contains(self.rect):
             self.image = Enemy.image[1]  # crash into wall
+            bounce = None  # Bounce in opposite direction
             # --- compare self.rect and area.rect
-            if self.x_pos + self.rect.width / 2 > self.area.right:
-                self.x_pos = self.area.right - self.rect.width / 2
-                #  self.vx *= -1
-            if self.x_pos - self.rect.width / 2 < self.area.left:
-                self.x_pos = self.area.left + self.rect.width / 2
-                #  self.vx *= -1
-            if self.y_pos + self.rect.height / 2 > self.area.bottom:
+            if (self.y_pos + self.rect.height / 2) > self.area.bottom:  # Bottom wall
                 self.y_pos = self.area.bottom - self.rect.height / 2
-                #  self.vy *= -1
-            if self.y_pos - self.rect.height / 2 < self.area.top:
+                bounce = 0
+            if (self.y_pos - self.rect.height / 2) < self.area.top:  # Top wall
                 self.y_pos = self.area.top + self.rect.height / 2
-                #  self.vy *= -1
-            self.new_speed("gauss")  # calculate a new speed
+                bounce = 1
+            if (self.x_pos + self.rect.width / 2) > self.area.right:  # Right wall
+                self.x_pos = self.area.right - self.rect.width / 2
+                bounce = 2
+            if (self.x_pos - self.rect.width / 2) < self.area.left:  # Left wall
+                self.x_pos = self.area.left + self.rect.width / 2
+                bounce = 3
+            self.new_speed(bounce, "constant")  # calculate a new speed
         else:
             if self.detected:
                 self.image = Enemy.image[2]  # blue rectangle

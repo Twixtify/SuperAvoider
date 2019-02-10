@@ -294,25 +294,36 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     #########################
 
     # -- Perform Crossover --
-    random.shuffle(not_parents)
+    breed_only_winners = True
     children = ()
-    # Crossover with chosen parents and non-parents
-    not_parents = unique_list(ind_indexes, parents)
-    # TODO: Create method for crossover between parents only
-    for i, val in enumerate(not_parents):
-        if i < len(parents):
-            co_method(individuals[val], individuals[parents[i]])
-            children += (val, parents[i])
-#            print("Crossover performed on: (", val, ",", parents[i], ")")
+    if breed_only_winners:
+        # If the length och parents is not even, pad it by adding the best individual
+        if len(parents) % 2 != 0:
+            parents.append(sel_best(fitness, 1)[0])
+            random.shuffle(parents)
+        for i, parent in enumerate(parents):
+            # Combine parents from either end of parents list
+            if i < np.floor(len(parents) / 2):  # Check to avoid breeding one parent multiple times
+                co_method(individuals[parents[i]], individuals[parents[-i-1]])
+                children += (parents[i], parents[-i-1])
+    else:
+        not_parents = unique_list(ind_indexes, parents)
+        random.shuffle(not_parents)
+        # Crossover between parents and non-parents
+        for i, val in enumerate(not_parents):
+            if i < len(parents):
+                co_method(individuals[val], individuals[parents[i]])
+                children += (val, parents[i])
+#               print("Crossover performed on: (", val, ",", parents[i], ")")
 #    [print("Child %i %s" % (child, individuals[child])) for child in children]
-    #########################
+    ###############################################################################################
 
     #####################################################
     # ------- Mutate children -------
     perturb_size = 1 #/ map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
 #    print("Mean fitness", mean_fitness, "Perturbation size", perturb_size)
     for child in children:
-        mut_prob = 1. / len(individuals[child])  # Average 1 mutation per child
+        mut_prob = 2. / len(individuals[child])  # Average 1 mutation per child
         mut_method(individuals[child], mut_prob, perturb_size)
     #########################################
 #    [print("Individual %i %s" % (i, individual)) for i, individual in enumerate(individuals)]

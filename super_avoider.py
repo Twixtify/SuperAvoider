@@ -85,11 +85,8 @@ class SuperAvoider:
         self.player_ai = self.create_player(controlled_by_ai=True)  # Load a character that is controlled by AIs
         for ai in range(ai_minds):
             self.ai_minds.append(SuperAvoiderAI(input_shape=(self.ai_inputs,),
-                                                neurons_layer=[8, 5, 5],
-                                                activations=["relu", "relu", "softmax"]))
-
-    def get_ai(self, ai):
-        return self.ai_minds[ai].get_flatten_weights(use_bias=False)
+                                                neurons_layer=[5, 5],
+                                                activations=["relu", "softmax"]))
 
     def load_background(self, *args):
         self.background = pygame.Surface((self.screen.get_width(), self.screen.get_height()))  # Surface which graphic
@@ -179,11 +176,12 @@ class SuperAvoider:
         :return: 1D numpy array [rect.centerx_1, rect.centery_1, ...]
         """
         sprite_positions = np.zeros((self.ai_inputs,))  # 1D array of all x and y pos
-        sprite_positions[0] = self.player_ai.rect.centerx / self.W_WIDTH
-        sprite_positions[1] = self.player_ai.rect.centery / self.W_HEIGHT
+        sprite_positions[0] = self.player_ai.rect.centerx / self.W_WIDTH  # Distance to left wall
+        sprite_positions[1] = self.player_ai.rect.centery / self.W_HEIGHT  # Distance to top wall
         for i, enemy in enumerate(enemy_group):
-            sprite_positions[i + 1] = enemy.rect.centerx / self.W_WIDTH
-            sprite_positions[i + 2] = enemy.rect.centery / self.W_HEIGHT
+            # Enemy position relative to player
+            sprite_positions[i + 1] = np.abs(enemy.rect.centerx / self.W_WIDTH - sprite_positions[0])
+            sprite_positions[i + 2] = np.abs(enemy.rect.centery / self.W_HEIGHT - sprite_positions[1])
         sprite_positions.shape = (1, -1)
         return ai.get_predict(sprite_positions, classify=True)[0]
 
@@ -196,7 +194,7 @@ class SuperAvoider:
         """
         for enemy in range(enemies):
             # Draw positions from top left corner
-            pos = (random.random() * self.W_WIDTH / 2, random.random() * self.W_HEIGHT / 2)
+            pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
             Enemy(pos, self.background)
 
     def create_player(self, controlled_by_ai=False):
@@ -205,12 +203,12 @@ class SuperAvoider:
         Players spawn in the 4th quadrant of the game display
         :return: Player object
         """
-        pos = (self.W_WIDTH / 2 + random.random() * self.W_WIDTH / 2,
-               self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
+        pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
+               self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
         player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
         if controlled_by_ai:
             colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
-            EnemyDetection(colour=colour, starting_pos=pos, size=5 * player.rect.width)
+            EnemyDetection(colour=colour, starting_pos=pos, size=6 * player.rect.width)
         return player
 
     def reset_pos(self):
@@ -223,12 +221,12 @@ class SuperAvoider:
         # Reset position of enemies
         for enemy in self.enemy_group:
             # Draw positions from top left corner
-            pos = (random.random() * self.W_WIDTH / 2, random.random() * self.W_HEIGHT / 2)
+            pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
             enemy.new_pos(pos)
         # Reset position of players
         for player in self.player_group:
-            pos = (self.W_WIDTH / 2 + random.random() * self.W_WIDTH / 2,
-                   self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
+            pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
+                   self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
             player.new_pos(pos)
 
     def restart(self):
@@ -321,7 +319,7 @@ class SuperAvoider:
             self.all_sprites_group.clear(self.screen, self.background)
             # ----- Update sprites -----
             self.detection_group.update((self.player_ai.rect.centerx, self.player_ai.rect.centery))
-            ai_decision = self.ai_decision(self.ai_minds[ai_number], detected_dict)
+            ai_decision = self.ai_decision(self.ai_minds[ai_number], self.enemy_group)
             self.player_group.update(seconds_passed, ai_decision)
             self.enemy_group.update(seconds_passed)  # arg = seconds since last call
 
@@ -349,7 +347,7 @@ class SuperAvoider:
 
 def main():
     # -- Create AI --
-    SA = SuperAvoider(user_play=False, enemies=100, ai_minds=10)
+    SA = SuperAvoider(user_play=False, enemies=40, ai_minds=20)
     individuals = []
     for ai in SA.ai_minds:
         individuals.append(ai.get_flatten_weights(use_bias=False))
@@ -357,6 +355,7 @@ def main():
     fitness = np.zeros(len(SA.ai_minds))  # Create 1D array to hold fitness values
     generation, max_gen = 0, 1000
     while generation < max_gen:
+        # Perform task for each AI
         for ai in range(len(SA.ai_minds)):
             score = SA.start_game(generation=generation, ai_number=ai)
             if score is True:
@@ -365,8 +364,12 @@ def main():
                 exit(0)
             else:
                 fitness[ai] = score
+        # Perform evolution through genetic algorithm
         individuals = GA.breed(individuals, fitness, GA.sel_tournament, GA.co_uniform, GA.mut_gauss,
-                               tournaments=4, tournament_size=3)
+                               tournaments=6, tournament_size=5)
+        # Update the minds of each individual
+        for num, ai in enumerate(SA.ai_minds):
+            ai.update_weights(new_weights=individuals[num], is_flat=True)
         print("Generation %i Mean fitness %s" % (generation, np.mean(fitness)))
         generation += 1
     print(fitness.tolist())

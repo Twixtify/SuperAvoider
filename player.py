@@ -1,4 +1,6 @@
 import pygame
+import numpy as np
+from super_avoider_AI import SuperAvoiderAI
 
 
 class Player(pygame.sprite.Sprite):
@@ -28,7 +30,7 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         # ---- Create hitbox the size of the player image at it's starting location
         self.rect = self.image.get_rect(center=(round(self.x_pos), round(self.y_pos)))
-        self.radius = max(self.rect.width, self.rect.height) * 2.0
+#        self.radius = max(self.rect.width, self.rect.height) * 2.0
         # ---- Flag for Game Over
         self.remove = False
         # ---- Update static variables -----
@@ -77,6 +79,9 @@ class Player(pygame.sprite.Sprite):
             self.x_pos += step_size  # move right
         elif key[pygame.K_LEFT] or key[pygame.K_a]:  # left key
             self.x_pos -= step_size  # move left
+        # ---- Updated coordinates for player hitbox
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
 
     def move_AI(self, step_size, ai_decision):
         """AI decision to move"""
@@ -89,6 +94,38 @@ class Player(pygame.sprite.Sprite):
                 self.x_pos += step_size  # Move right
             elif ai_decision == 3:
                 self.x_pos -= step_size  # Move left
+        # ---- Updated coordinates for player hitbox
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
+
+    def init_ai(self, ai_inputs):
+        """
+        Initialize a set of AI minds and create player object for them to control
+        :param ai_minds: Integer
+        :return: None
+        """
+        self.ai_inputs = ai_inputs
+        self.ai_mind = SuperAvoiderAI(input_shape=(self.ai_inputs,),
+                                      neurons_layer=[5, 5],
+                                      activations=["relu", "softmax"])
+
+    def ai_decision(self, enemy_group):
+        """
+        Create 1D array consisting of all player and enemy positions. Scaled by game windows width and height
+        The first 2 entries are always the players x and y position
+        :param ai: Neural network object
+        :param enemy_group: Object group
+        :return: 1D numpy array [rect.centerx_1, rect.centery_1, ...]
+        """
+        sprite_positions = np.zeros((self.ai_inputs,))  # 1D array of all x and y pos
+        sprite_positions[0] = self.rect.centerx / self.area.width  # Distance to left wall
+        sprite_positions[1] = self.rect.centery / self.area.height  # Distance to top wall
+        for i, enemy in enumerate(enemy_group):
+            # Enemy position relative to player
+            sprite_positions[i + 1] = np.abs(enemy.rect.centerx / self.area.width - sprite_positions[0])
+            sprite_positions[i + 2] = np.abs(enemy.rect.centery / self.area.height - sprite_positions[1])
+        sprite_positions.shape = (1, -1)
+        return self.ai_mind.get_predict(sprite_positions, classify=True)[0]
 
     def update(self, time_alive, ai_decision=None):
         """
@@ -107,9 +144,6 @@ class Player(pygame.sprite.Sprite):
             self.move_AI(self.step_size, ai_decision)
         else:
             self.move(self.step_size)
-        # ---- Updated coordinates for player hitbox
-        self.rect.centerx = round(self.x_pos, 0)
-        self.rect.centery = round(self.y_pos, 0)
         # Set image
         self.image = Player.image[0]
         # -- check if out of screen --

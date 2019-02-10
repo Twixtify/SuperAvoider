@@ -72,10 +72,11 @@ class SuperAvoiderAI:
             self.use_bias = use_bias
 
         shapes = []
+        # Return bias shapes as well
         if self.use_bias:
             for weight_array in self.get_weights():
                 shapes.append(weight_array.shape)
-        else:
+        else:  # Use only weights
             for weight_array in self.get_weights()[0::2]:
                 shapes.append(weight_array.shape)
         return shapes
@@ -110,7 +111,7 @@ class SuperAvoiderAI:
 
     def get_predict(self, input_sample, classify=False, verbose=0):
         """
-        Calculate an output of the model. Note that Keras expects
+        Calculate an output of the model.
         :param input_sample: Numpy array of same shape as 'input_shape'
         :param classify: Boolean
         :param verbose: 0 or 1
@@ -191,3 +192,4 @@ if __name__ == '__main__':
 
     Y = SA.get_flatten_weights(use_bias=False)
     SA.update_weights(new_weights=Y, is_flat=True)
+    print(SA.get_shapes())

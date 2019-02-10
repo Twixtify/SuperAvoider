@@ -42,6 +42,17 @@ class Enemy(pygame.sprite.Sprite):
         """
         return 100 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
+    def new_pos(self, pos):
+        """
+        Call this function to update position of enemy
+        :param pos: Tuple
+        :return:
+        """
+        self.x_pos = pos[0] * 1.0  # float
+        self.y_pos = pos[1] * 1.0  # float
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
+
     def new_speed(self, method="uniform"):
         """
         Calculate the new speed of Enemy sprite. Will not be 0.

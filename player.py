@@ -11,12 +11,14 @@ class Player(pygame.sprite.Sprite):
     # tag
     number = 0
 
-    def __init__(self, start_pos=(50, 50), game_display=pygame.Surface):
+    def __init__(self, start_pos=(50, 50), game_display=pygame.Surface, controlled_by_ai=False):
         pygame.sprite.Sprite.__init__(self, self.groups)
         # Save game display as a rectangular area object
         self.area = game_display.get_rect()  # where the sprite is allowed to move
         # Score variable for each player
         self.score = 0
+        # Set flag if it's an AI controlling this player
+        self.controlled_by_ai = controlled_by_ai
         # ---- Create variables for keeping track of sprite position ----
         self.x_pos = start_pos[0] * 1.0  # float
         self.y_pos = start_pos[1] * 1.0  # float
@@ -45,6 +47,17 @@ class Player(pygame.sprite.Sprite):
         # Call super method to remove player
         pygame.sprite.Sprite.kill(self)
 
+    def new_pos(self, pos):
+        """
+        Call this function to update position of player
+        :param pos: Tuple
+        :return:
+        """
+        self.x_pos = pos[0] * 1.0  # float
+        self.y_pos = pos[1] * 1.0  # float
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
+
     def auto_step_size(self):
         """
         Return automatic step size
@@ -52,28 +65,30 @@ class Player(pygame.sprite.Sprite):
         """
         return 10 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
-    def move(self, pixels=10, ai_decision=None):
+    def move(self, step_size=10):
         """ Handles Keys """
+        key = pygame.key.get_pressed()
+        # distance moved in 1 frame, try changing it
+        if key[pygame.K_DOWN] or key[pygame.K_s]:  # down key
+            self.y_pos += step_size  # move down
+        elif key[pygame.K_UP] or key[pygame.K_w]:  # up key
+            self.y_pos -= step_size  # move up
+        if key[pygame.K_RIGHT] or key[pygame.K_d]:  # right key
+            self.x_pos += step_size  # move right
+        elif key[pygame.K_LEFT] or key[pygame.K_a]:  # left key
+            self.x_pos -= step_size  # move left
+
+    def move_AI(self, step_size, ai_decision):
+        """AI decision to move"""
         if ai_decision is not None:
             if ai_decision == 0:
-                self.y_pos += pixels  # Move down
+                self.y_pos += step_size  # Move down
             elif ai_decision == 1:
-                self.y_pos -= pixels  # Move up
+                self.y_pos -= step_size  # Move up
             elif ai_decision == 2:
-                self.x_pos += pixels  # Move right
+                self.x_pos += step_size  # Move right
             elif ai_decision == 3:
-                self.x_pos -= pixels  # Move left
-        else:
-            key = pygame.key.get_pressed()
-            # distance moved in 1 frame, try changing it
-            if key[pygame.K_DOWN]:  # down key
-                self.y_pos += pixels  # move down
-            elif key[pygame.K_UP]:  # up key
-                self.y_pos -= pixels  # move up
-            if key[pygame.K_RIGHT]:  # right key
-                self.x_pos += pixels  # move right
-            elif key[pygame.K_LEFT]:  # left key
-                self.x_pos -= pixels  # move left
+                self.x_pos -= step_size  # Move left
 
     def update(self, time_alive, ai_decision=None):
         """
@@ -88,7 +103,10 @@ class Player(pygame.sprite.Sprite):
             self.image = Player.image[1]
             self.kill()  # Game over
         # -- Move player --
-        self.move(pixels=self.step_size, ai_decision=ai_decision)
+        if self.controlled_by_ai:
+            self.move_AI(self.step_size, ai_decision)
+        else:
+            self.move(self.step_size)
         # ---- Updated coordinates for player hitbox
         self.rect.centerx = round(self.x_pos, 0)
         self.rect.centery = round(self.y_pos, 0)

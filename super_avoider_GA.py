@@ -267,7 +267,7 @@ def mut_gauss(ind, mut_prob, perturb_size=1.):
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def breed(individuals, fitness, sel_method, co_method, mut_method, *args):
+def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, tournament_size):
     # ------- Convert numpy array to list -------
     ind_indexes = []
     for i, individual in enumerate(individuals):
@@ -282,8 +282,7 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, *args):
 
     # ---------- Selection ----------
     # Note len(parents) = tournaments
-    parents = sel_method(fitness=fitness, tournaments=args[0], tour_size=args[1], replace=False)
-    not_parents = unique_list(ind_indexes, parents)
+    parents = sel_method(fitness=fitness, tournaments=tournaments, tour_size=tournament_size, replace=False)
 #    print("Winning individuals (by index):", parents)
     #################################
 
@@ -297,6 +296,9 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, *args):
     # -- Perform Crossover --
     random.shuffle(not_parents)
     children = ()
+    # Crossover with chosen parents and non-parents
+    not_parents = unique_list(ind_indexes, parents)
+    # TODO: Create method for crossover between parents only
     for i, val in enumerate(not_parents):
         if i < len(parents):
             co_method(individuals[val], individuals[parents[i]])
@@ -307,7 +309,7 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, *args):
 
     #####################################################
     # ------- Mutate children -------
-    perturb_size = 1 #/ map_to_interval(np.mean(fitness), [0, 1000], [0, 1])
+    perturb_size = 1 #/ map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
 #    print("Mean fitness", mean_fitness, "Perturbation size", perturb_size)
     for child in children:
         mut_prob = 1. / len(individuals[child])  # Average 1 mutation per child
@@ -374,11 +376,11 @@ if __name__ == '__main__':
         population.append(np.arange(indi, indi + 4))
     print("Fitness:", score)
 
-    steps = 1000
+    steps = 10000
     tmp = np.zeros((len(population), 4, steps))
     for _ in range(steps):
         tmp_list = breed(population, score, sel_tournament, co_uniform, mut_gauss, 4, 3)
-        score[:] += random.random()
+        score = np.random.random_integers(0, round(steps / 10), 10)
         for individual, ind_list in enumerate(tmp_list):
             for i, val in enumerate(ind_list):
                 tmp[individual, i, _] = val

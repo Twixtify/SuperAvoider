@@ -2,6 +2,8 @@ import os
 import time
 import pygame
 import random
+import numpy as np
+import super_avoider_GA as GA
 from enemy import Enemy
 from player import Player
 from enemy_detection import EnemyDetection
@@ -22,46 +24,73 @@ class SuperAvoider:
     # Path to image directory
     image_path = os.path.join(file_path, "Images")
     # Set icon of window
-    icon_path = os.path.join(image_path, "player.png")#"babytux.png")
+    icon_path = os.path.join(image_path, "player.png")
     try:
         pygame.display.set_icon(pygame.image.load(icon_path))
     except:
         raise (UserWarning, "Could not find icon in", icon_path)
 
-    def __init__(self):
+    def __init__(self, user_play=True, enemies=50, ai_minds=0, screen_size=(800, 600)):
         # ---- Define some colors ----
         self.BLACK = (0, 0, 0)
         self.WHITE = (255, 255, 255)
         self.GREEN = (0, 255, 0)
         self.BLUE = (0, 0, 255)
         self.RED = (255, 0, 0)
+        # ---- Frames per seconds ----
         self.FPS = 60
         # ---- Load Images ----
         self.init_sprite_images()
-        # ---- Set the background ----
-        size = self.W_WIDTH, self.W_HEIGHT = (800, 600)
+
+        # ---- Set the background and Surface (screen) object ----
+        size = self.W_WIDTH, self.W_HEIGHT = screen_size
         self.screen = pygame.display.set_mode(size)  # Create window which graphics are rendered on
-        self.background = pygame.Surface((self.screen.get_width(), self.screen.get_height()))  # Surface which graphic
-        # objects are drawn on and then pushed to the screen to render
-        colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
-        self.background.fill(colour)  # Background colour
-        self.background.blit(self.write("Press ESC or Q to quit"), (5, 10))
-        self.background.blit(self.write("Press P to (un)pause"), (self.W_WIDTH - 225, 10))
-        self.background.convert()
-        self.screen.blit(self.background, (0, 0))
-        # ---- Start the game ----
-        # Make images suitable for quick blitting, i.e drawn quickly on screen
+        # -------------------------------------------------------------------------------------------------------------
+
+        # ---- objects are drawn on and then pushed to the screen to render ----
+        self.background_colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
+        self.load_background()
+        # -------------------------------------------------------------------------------------------------------------
+
+        # ---- Make images suitable for quick blitting, i.e drawn quickly on screen ----
         for i, _ in enumerate(Enemy.image):
             Enemy.image[i] = Enemy.image[i].convert_alpha()
         for i, _ in enumerate(Player.image):
             Player.image[i] = Player.image[i].convert_alpha()
-        self.start_game()
+        # -------------------------------------------------------------------------------------------------------------
 
-    def write(self, msg="pygame is cool", style=None, size=32, colour=(0, 0, 0)):
-        myfont = pygame.font.SysFont(style, size)
-        mytext = myfont.render(msg, True, colour)  # Surface object
-        mytext = mytext.convert_alpha()
-        return mytext
+        # -- Create sprite groups --
+        self.make_sprite_groups()
+        # -- Create player --
+        self.user_play = user_play
+        if user_play:
+            self.create_player(controlled_by_ai=False)
+        # -- Create enemies --
+        if enemies > 0:
+            self.enemies = enemies
+            self.create_enemies(self.enemies)
+        # -- Initialize AIs --
+        if ai_minds > 0:
+            self.ai_minds = []
+            for ai in range(ai_minds):
+                self.ai_minds.append(self.create_player(controlled_by_ai=True))
+
+    def load_background(self, *args):
+        self.background = pygame.Surface((self.screen.get_width(), self.screen.get_height()))  # Surface which graphic
+        self.background.fill(self.background_colour)  # Background colour
+        self.background.blit(self.write("Press ESC or Q to quit"), (5, 10))
+        self.background.blit(self.write("Press P to (un)pause"), (self.W_WIDTH - 225, 10))
+        if len(args) > 0:
+            self.background.blit(self.write("Generation %i" % args[0]), (self.W_WIDTH - 225, 35))
+        self.background.convert()
+        # Push background object on queue to be printed on screen
+        self.screen.blit(self.background, (0, 0))
+
+    def write(self, msg="sample text", style=None, size=32, colour=(0, 0, 0)):
+        my_font = pygame.font.SysFont(style, size)
+        my_text = my_font.render(msg, True, colour)  # Surface object
+        my_text = my_text.convert_alpha()
+        return my_text
 
     def init_sprite_images(self):
         """
@@ -85,73 +114,6 @@ class SuperAvoider:
         pygame.draw.rect(Player.image[2], self.RED, (0, 0, 32, 32), 1)  # Draw red border around image[2]
         # print(Player.image[0].get_size())
 
-    def spawn_enemies(self, pop=1):
-        """
-        Creates pop number of enemies
-        Enemies spawn in the 1st quadrant of the game display
-        :param pop: population
-        :return:
-        """
-        for enemy in range(pop):
-            # Draw positions from top left corner
-            pos = (random.random() * self.W_WIDTH / 2, random.random() * self.W_HEIGHT / 2)
-            Enemy(pos, self.background)
-
-    def spawn_player(self, pop=1):
-        """
-        Spawn player on the board
-        Players spawn in the 4th quadrant of the game display
-        :param pop: number of players
-        :return:
-        """
-        for individual in range(pop):
-            colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
-            pos = (self.W_WIDTH / 2 + random.random() * self.W_WIDTH / 2,
-                   self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
-            p1 = Player(start_pos=pos, game_display=self.background)
-            EnemyDetection(colour=colour, starting_pos=pos, size=5 * p1.rect.width)
-
-    def respown(self):
-        colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
-        pos = (random.random() * self.W_WIDTH, random.random() * self.W_HEIGHT)
-        p1 = Player(start_pos=pos, game_display=self.background)
-        EnemyDetection(colour=colour, starting_pos=pos, size=5 * p1.rect.width)
-
-    def event_handle(self):
-        for event in pygame.event.get():  # loop through all events that happened on the screen
-            if event.type == pygame.QUIT:
-                self.mainloop = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
-                    self.mainloop = False
-                if event.key == pygame.K_r:
-                    self.respown()
-                if event.key == pygame.K_p:
-                    self.pause()
-
-    def pause(self):
-        pause_text_surf = self.write("Paused", style="None", size=115)
-        pause_text_rect = pause_text_surf.get_rect()
-        pause_text_rect.center = ((round(self.W_WIDTH / 2)), (round(self.W_HEIGHT / 2)))
-        self.screen.blit(pause_text_surf, pause_text_rect)
-        paused = True
-        while paused:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    exit(0)
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_p:
-                        paused = False
-                    elif event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
-                        self.mainloop = False
-                        paused = False
-            # Update/draw game display
-            pygame.display.flip()
-            # Update only 5 times per second
-            self.clock.tick(5)
-        self.screen.blit(self.background, (0, 0))
-
     def make_sprite_groups(self):
         # assign default groups to each sprite class
         self.all_sprites_group = pygame.sprite.LayeredUpdates()  # All sprites in this group
@@ -168,76 +130,225 @@ class SuperAvoider:
         Player.groups = self.player_group, self.all_sprites_group
         EnemyDetection.groups = self.detection_group, self.all_sprites_group
 
-    def start_game(self):
+    def create_enemies(self, enemies=1):
         """
-        Main method to run game
+        Creates pop number of enemies
+        Enemies spawn in the 1st quadrant of the game display
+        :param enemies: Integer
+        :return: None
+        """
+        for enemy in range(enemies):
+            # Draw positions from top left corner
+            pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
+            Enemy(pos, self.background)
+
+    def create_player(self, controlled_by_ai=False, ai_brain=False):
+        """
+        Spawn player on the board
+        Players spawn in the 4th quadrant of the game display
+        :return: Player object
+        """
+        pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
+               self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
+        if controlled_by_ai:
+            # Create player object
+            player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
+            # Initialize neural network
+            player.init_ai(ai_input_size=2 * (1 + self.enemies), brain=ai_brain)
+        else:
+            player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
+        return player
+
+    def reset_pos(self):
+        """
+        Reset positions of sprites
         :return:
         """
+        self.all_sprites_group.clear(self.screen, self.background)
+        pygame.display.flip()
+        # Reset position of enemies
+        for enemy in self.enemy_group:
+            # Draw positions from top left corner
+            pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
+            enemy.new_pos(pos)
+        # Reset position of players
+        for player in self.player_group:
+            pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
+                   self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
+            player.new_pos(pos)
+
+    def restart(self, ai_brains):
+        """
+        Restart the game. Check which type of players should be spawned
+        :return:
+        """
+        # Check if all players are dead, then create all player sprites
+        if len(self.player_group) is 0:
+            if self.user_play:
+                self.create_player(controlled_by_ai=False)
+            for ai in range(len(self.ai_minds)):
+                self.ai_minds[ai] = self.create_player(controlled_by_ai=True, ai_brain=ai_brains[ai])
+        else:
+            # TODO: Assign only ai_brains that are currently not used
+            # Create only missing player objects
+            for player in self.player_group:
+                if player.controlled_by_ai and len(self.player_group) < 2:
+                    if self.user_play:
+                        self.create_player(controlled_by_ai=False)
+                elif len(self.player_group) < 2:  # Redo this
+                    self.player_ai = self.create_player(controlled_by_ai=True, ai_brain=ai_brains)
+        self.reset_pos()
+
+    def pause(self):
+        pause_text_surf = self.write("Paused", style="None", size=115)
+        pause_text_rect = pause_text_surf.get_rect()
+        pause_text_rect.center = ((round(self.W_WIDTH / 2)), (round(self.W_HEIGHT / 2)))
+        self.screen.blit(pause_text_surf, pause_text_rect)
+        paused = True
+        while paused:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.exit_game = True
+                    paused = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_p:
+                        paused = False
+                    elif event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
+                        self.exit_game = True
+                        paused = False
+            # Update/draw game display
+            pygame.display.flip()
+            # Update only 5 times per second
+            self.clock.tick(5)
+        # Clear 'Paused' text from the screen
+        self.screen.blit(self.background, (0, 0))
+
+    def event_handle(self, ai_brains):
+        for event in pygame.event.get():  # loop through all events that happened on the screen
+            if event.type == pygame.QUIT:
+                self.exit_game = True
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
+                    self.exit_game = True
+                if event.key == pygame.K_r:
+                    self.restart(ai_brains=ai_brains)
+                if event.key == pygame.K_p:
+                    self.pause()
+
+    def start_game(self, generation=None, ai_brains=None):
+        """
+        Main method to run game
+        :param generation: Integer
+        :param ai_brains: List of neural network weights
+        :return:
+        """
+        self.restart(ai_brains)
+        self.load_background(generation)
         # Start a timer
         self.clock = pygame.time.Clock()
-        # -- Create sprite groups --
-        self.make_sprite_groups()
-        # -- Create player and enemies
-        self.spawn_enemies(50)
-        self.spawn_player(1)
         # -------- Main Program Loop ---------
-        self.mainloop = True
-        while self.mainloop:
-            seconds = round(time.clock())  # Update time
-            # ***** Main Event Loop *****
-            self.event_handle()
-            # *****  Game logic  *****
-            if pygame.mouse.get_pressed()[0]:
-                Enemy(pygame.mouse.get_pos(), self.background)
-            # ---- collision detection ----
+        score = []  # (player number, player score)
+        self.exit_game = False
+        self.players_alive = True
+        while self.players_alive:
+            # **''''''''''''''''''''*** Main Event Loop *****''''''''''''''''''''''****
+            self.event_handle(ai_brains)
+            # -------------------------------------------------------------------------------------------------------
+
+            # ''''''''''''''''''''''*****  Game logic  **'''''''''''''''''''''''''''***
+
+            # ----- collision detection -----
             for enemy in self.enemy_group:
                 enemy.detected = False  # set all Enemy sprites to not detected
 
             # pygame.sprite.groupcollide(group1, group2, dokill1, dokill2, collided = None):
             # return dictionary of Sprites in group1 that collide with group2
+            # pygame.sprite.collide_circle works only if one sprite has self.radius
+            # No argument collided yield self.rects will be checked
             detected_dict = pygame.sprite.groupcollide(self.enemy_group, self.detection_group, False, False,
                                                        pygame.sprite.collide_circle)
             gameover_dict = pygame.sprite.groupcollide(self.player_group, self.enemy_group, False, False)
-            # pygame.sprite.collide_circle works only if one sprite has self.radius
-            # No argument collided yield self.rects will be checked
-            if detected_dict:
-                for enemy in detected_dict:
-                    enemy.detected = True  # will get a blue border from Bird.update()
-            # Remove player and its detector
-            if gameover_dict:
-                for player in gameover_dict:
-                    print("Player %i Score: %i" % (player.number, player.score))
-                    player.remove = True
-                    EnemyDetection.devices[player.number].remove = True
 
-            # ----- Update sprites -----
+            # -------------------------------------------------------------------------------------------------------
+
+            # ----- Calculate score -----
+            seconds_passed = self.clock.tick(self.FPS) / 1000.0
+            # ----- Flag players to be removed -----
+            # Use blue border on enemies inside the hitbox of enemy_detection
+            for enemy in detected_dict:
+                enemy.detected = True
+            # Remove player and its detector
+            for player in gameover_dict:
+                player.remove = True
+                if player.controlled_by_ai:
+                    score.append((player.number, player.score))
+                    print("AI %i Score: %.2f" % (player.number, player.score))
+                else:
+                    print("Player score:  %.2f" % player.score)
+            # -------------------------------------------------------------------------------------------------------
+
+            # ----- Clear sprites from screen -----
             # Erase sprites from last Group.draw() call.
             # The destination Surface is cleared by filling the drawn Sprite positions with the background.
             self.all_sprites_group.clear(self.screen, self.background)
-            # Calls the update() method on all Sprites in the Group.
-            # The base Sprite class has an update method that takes any number of arguments and does nothing.
-            # The arguments passed to Group.update() will be passed to each Sprite.
-            seconds_passed = self.clock.tick(self.FPS) / 1000.0
-            # -- Update/Remove detectors for alive/removed players
-            if self.player_group:
-                for player in self.player_group:
-                    self.detection_group.update((player.rect.centerx, player.rect.centery))
-            self.player_group.update(seconds_passed)
+            # ----- Update sprites -----
+            self.player_group.update(seconds_passed, self.enemy_group)
+            self.detection_group.update()
             self.enemy_group.update(seconds_passed)  # arg = seconds since last call
-            # Draws the contained Sprites to the Surface argument.
+
+            # ----- Draw sprites to screen -----
+            # Draws Sprites to the Surface argument.
             # This uses the Sprite.image attribute for the source surface, and Sprite.rect for the position.
             self.all_sprites_group.draw(self.screen)
+            # -------------------------------------------------------------------------------------------------------
 
             # ----- Update screen with what we have drawn ----
             pygame.display.flip()
             # Display useful information
-            pygame.display.set_caption("[FPS]: %.2f Time: %i Enemies: %i" % (self.clock.get_fps(), seconds, len(self.enemy_group)))
+            pygame.display.set_caption("[FPS]: %.2f Time: %i Enemies: %i" %
+                                       (self.clock.get_fps(), round(time.clock()), len(self.enemy_group)))
             # ----- Limit to 'FPS' frames per second ----
             self.clock.tick(self.FPS)
-        pygame.quit()
-        print("Game exit!\nShutting down...")
-        exit(0)
+            # ----- Game over condition ------
+            if Player.total_number == 0 or self.exit_game:
+                self.players_alive = False
+        if self.exit_game:
+            return "exit"
+        else:
+            return score
 
+
+def main():
+    # -- Create AI --
+    SA = SuperAvoider(user_play=False, enemies=40, ai_minds=10)
+    fitness = np.zeros(len(SA.ai_minds))  # Create 1D array to hold fitness values
+    individuals = []
+    for player_ai in SA.ai_minds:
+        individuals.append(player_ai.get_brain())
+    # -------------------------------------------------------
+    generation, max_gen = 0, 1000
+    while generation < max_gen:
+        # Perform task for each AI
+        score = SA.start_game(generation=generation, ai_brains=individuals)
+        if score is "exit":
+            pygame.quit()
+            print("Game over\nShutting down...")
+            exit(0)
+        else:
+            for i, val in score:
+                fitness[i] = val
+        # Perform evolution through genetic algorithm
+        individuals = GA.breed(individuals, fitness, GA.sel_tournament, GA.co_uniform, GA.mut_gauss,
+                               tournaments=6, tournament_size=5)
+        # Update the minds of each individual
+        for num, player_ai in enumerate(SA.ai_minds):
+            player_ai.set_brain(individuals[num])
+        print("Generation %i Mean fitness %s" % (generation, np.mean(fitness)))
+        generation += 1
+    print(fitness.tolist())
+    pygame.quit()
+    print("Game over\nShutting down...")
+    exit(0)
 
 if __name__ == '__main__':
-    SuperAvoider()
+    main()

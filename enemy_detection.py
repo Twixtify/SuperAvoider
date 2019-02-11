@@ -1,10 +1,9 @@
-import math
 import pygame
 
 
 class EnemyDetection(pygame.sprite.Sprite):
     devices = {}
-    number = 0
+    total_number = 0
 
     def __init__(self, colour, starting_pos, size):
         """
@@ -25,20 +24,19 @@ class EnemyDetection(pygame.sprite.Sprite):
         self.image = self.image.convert_alpha()
         self.rect = self.image.get_rect(center=(init_x_pos, init_y_pos))
         self.remove = False
-        self.number = EnemyDetection.number  # get my personal Enemy number
-        EnemyDetection.number += 1  # increase the number for next Enemy
+        self.number = EnemyDetection.total_number  # get my personal Enemy number
+        EnemyDetection.total_number += 1  # increase the number for next Enemy
         EnemyDetection.devices[self.number] = self  # store myself into the Enemy dictionary
 
     def kill(self):
         # Remove object from dictionary
         EnemyDetection.devices[self.number] = None  # kill object in sprite dictionary
         # Reduce total number of active devices by 1
-        EnemyDetection.number -= 1
+        EnemyDetection.total_number -= 1
         # Call super method to remove object
         pygame.sprite.Sprite.kill(self)
 
-    def update(self, player_pos):
+    def update(self):
         # -- Check if Game Over --
         if self.remove:
             self.kill()  # Game over
-        self.rect.center = player_pos

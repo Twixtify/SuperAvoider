@@ -1,7 +1,6 @@
 import pygame
 import random
 import numpy as np
-from super_avoider_AI import SuperAvoiderAI
 from enemy_detection import EnemyDetection
 
 
@@ -41,6 +40,17 @@ class Player(pygame.sprite.Sprite):
         Player.players[self.number] = self  # store myself into the Enemy dictionary
         #  print("my number %i Player number %i " % (self.number, Player.number))
 
+    def new_pos(self, pos):
+        """
+        Call this function to update position of player
+        :param pos: Tuple
+        :return:
+        """
+        self.x_pos = pos[0] * 1.0  # float
+        self.y_pos = pos[1] * 1.0  # float
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
+
     def kill(self):
         if self.controlled_by_ai:
             # Flag detection object to be removed
@@ -54,50 +64,18 @@ class Player(pygame.sprite.Sprite):
         # Call super method to remove player
         pygame.sprite.Sprite.kill(self)
 
-    def init_ai(self, ai_input_size, brain):
+    def connect_ai(self, ai_mind):
         """
-        Initialize a set of AI minds and create player object for them to control
+        Initialize a variables for neural network
         :param ai_input_size: Integer
-        :param brain: List of floats
+        :param ai_mind: Neural network object
         :return: None
         """
-        self.ai_input_size = ai_input_size
         # Feed forward neural network
-        self.ai_mind = SuperAvoiderAI(input_shape=(self.ai_input_size,),
-                                      neurons_layer=[5, 5],
-                                      activations=["relu", "softmax"])
-        if brain:
-            self.set_brain(brain)
+        self.ai_mind = ai_mind
         # Enemy detection object initialized
         colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
         self.detection = EnemyDetection(colour=colour, starting_pos=(self.x_pos, self.y_pos), size=6 * self.rect.width)
-
-    def get_brain(self, use_bias=False):
-        """
-        Return the 'brain' or 1D list of the neural network weights
-        :param use_bias: Boolean
-        :return:
-        """
-        return self.ai_mind.get_flatten_weights(use_bias=use_bias)
-
-    def set_brain(self, brain):
-        """
-        Load 1D weight array
-        :param brain:
-        :return:
-        """
-        self.ai_mind.update_weights(new_weights=brain, is_flat=True)
-
-    def new_pos(self, pos):
-        """
-        Call this function to update position of player
-        :param pos: Tuple
-        :return:
-        """
-        self.x_pos = pos[0] * 1.0  # float
-        self.y_pos = pos[1] * 1.0  # float
-        self.rect.centerx = round(self.x_pos, 0)
-        self.rect.centery = round(self.y_pos, 0)
 
     def auto_step_size(self):
         """
@@ -146,10 +124,10 @@ class Player(pygame.sprite.Sprite):
         :return: 1D numpy array [rect.centerx_1, rect.centery_1, ...]
         """
         # ------------------------------------ Calculate values ---------------------------------------------
-        sprite_positions = np.zeros((self.ai_input_size,))  # 1D array of all x and y pos
+        sprite_positions = np.zeros(ai_input[1],)  # 1D array of all x and y pos
         sprite_positions[0] = self.rect.centerx / self.area.width  # Distance from left wall
         sprite_positions[1] = self.rect.centery / self.area.height  # Distance from top wall
-        for i, enemy in enumerate(ai_input):
+        for i, enemy in enumerate(ai_input[0]):
             # Enemy position relative to player
             sprite_positions[i + 1] = np.abs(enemy.rect.centerx / self.area.width - sprite_positions[0])
             sprite_positions[i + 2] = np.abs(enemy.rect.centery / self.area.height - sprite_positions[1])
@@ -162,7 +140,7 @@ class Player(pygame.sprite.Sprite):
         Function called when
         :param time_alive: Argument must be provided when pygame.sprite.Group.update(*args) is called on this group
         This parameter represents the time passed since the last call to update()
-        :param ai_input: Integer
+        :param ai_input: Tuple of object and integer (ai_input, ai_input_size)
         :return: None
         """
         # -- Check if Game Over --

@@ -3,7 +3,7 @@ import time
 import pygame
 import random
 import numpy as np
-import super_avoider_GA as GA
+import super_avoider_GA as ga
 from enemy import Enemy
 from player import Player
 from enemy_detection import EnemyDetection
@@ -48,7 +48,6 @@ class SuperAvoider:
         # -------------------------------------------------------------------------------------------------------------
 
         # ---- objects are drawn on and then pushed to the screen to render ----
-        self.background_colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
         self.load_background()
         # -------------------------------------------------------------------------------------------------------------
 
@@ -63,19 +62,26 @@ class SuperAvoider:
         self.make_sprite_groups()
         # -- Create player --
         self.user_play = user_play
-        if user_play:
-            self.create_player(controlled_by_ai=False)
+        if self.user_play:
+            self.create_player(controlled_by_ai=self.user_play)
         # -- Create enemies --
-        if enemies > 0:
-            self.enemies = enemies
-            self.create_enemies(self.enemies)
+        self.enemies = enemies
+        self.create_enemies(self.enemies)
         # -- Initialize AIs --
-        if ai_minds > 0:
-            self.ai_minds = []
-            for ai in range(ai_minds):
-                self.ai_minds.append(self.create_player(controlled_by_ai=True))
+        self.GA = ga.SuperAvoiderGA()
+        # - AI options -
+        input_shape = (2 * (1 + self.enemies),)
+        neurons_layer = [5, 5]
+        activations = ["relu", "softmax"]
+        # - Create population of neural networks -
+        self.GA.init_pop(size=ai_minds, ai_options=[input_shape, neurons_layer, activations])
+        # - Create AI players and connect them to an AI -
+        for i in range(len(self.GA.pop)):
+            player = self.create_player(controlled_by_ai=True)
+            player.connect_ai(self.GA.get_ai(i))
 
     def load_background(self, *args):
+        self.background_colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
         self.background = pygame.Surface((self.screen.get_width(), self.screen.get_height()))  # Surface which graphic
         self.background.fill(self.background_colour)  # Background colour
         self.background.blit(self.write("Press ESC or Q to quit"), (5, 10))
@@ -142,7 +148,7 @@ class SuperAvoider:
             pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
             Enemy(pos, self.background)
 
-    def create_player(self, controlled_by_ai=False, ai_brain=False):
+    def create_player(self, controlled_by_ai=False):
         """
         Spawn player on the board
         Players spawn in the 4th quadrant of the game display
@@ -150,13 +156,8 @@ class SuperAvoider:
         """
         pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
                self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
-        if controlled_by_ai:
-            # Create player object
-            player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
-            # Initialize neural network
-            player.init_ai(ai_input_size=2 * (1 + self.enemies), brain=ai_brain)
-        else:
-            player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
+        # Create player object
+        player = Player(start_pos=pos, game_display=self.background, controlled_by_ai=controlled_by_ai)
         return player
 
     def reset_pos(self):
@@ -177,7 +178,7 @@ class SuperAvoider:
                    self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
             player.new_pos(pos)
 
-    def restart(self, ai_brains):
+    def restart(self):
         """
         Restart the game. Check which type of players should be spawned
         :return:
@@ -186,8 +187,9 @@ class SuperAvoider:
         if len(self.player_group) is 0:
             if self.user_play:
                 self.create_player(controlled_by_ai=False)
-            for ai in range(len(self.ai_minds)):
-                self.ai_minds[ai] = self.create_player(controlled_by_ai=True, ai_brain=ai_brains[ai])
+            for i in range(len(self.GA.pop)):
+                player_ai = self.create_player(controlled_by_ai=True)
+                player_ai.connect_ai(self.GA.get_ai(i))
         else:
             # TODO: Assign only ai_brains that are currently not used
             # Create only missing player objects
@@ -196,7 +198,7 @@ class SuperAvoider:
                     if self.user_play:
                         self.create_player(controlled_by_ai=False)
                 elif len(self.player_group) < 2:  # Redo this
-                    self.player_ai = self.create_player(controlled_by_ai=True, ai_brain=ai_brains)
+                    self.create_player(controlled_by_ai=True)
         self.reset_pos()
 
     def pause(self):
@@ -223,7 +225,7 @@ class SuperAvoider:
         # Clear 'Paused' text from the screen
         self.screen.blit(self.background, (0, 0))
 
-    def event_handle(self, ai_brains):
+    def event_handle(self):
         for event in pygame.event.get():  # loop through all events that happened on the screen
             if event.type == pygame.QUIT:
                 self.exit_game = True
@@ -231,18 +233,17 @@ class SuperAvoider:
                 if event.key == pygame.K_ESCAPE or event.key == pygame.K_q:
                     self.exit_game = True
                 if event.key == pygame.K_r:
-                    self.restart(ai_brains=ai_brains)
+                    self.restart()
                 if event.key == pygame.K_p:
                     self.pause()
 
-    def start_game(self, generation=None, ai_brains=None):
+    def start_game(self, generation=None):
         """
         Main method to run game
         :param generation: Integer
-        :param ai_brains: List of neural network weights
         :return:
         """
-        self.restart(ai_brains)
+        self.restart()
         self.load_background(generation)
         # Start a timer
         self.clock = pygame.time.Clock()
@@ -252,7 +253,7 @@ class SuperAvoider:
         self.players_alive = True
         while self.players_alive:
             # **''''''''''''''''''''*** Main Event Loop *****''''''''''''''''''''''****
-            self.event_handle(ai_brains)
+            self.event_handle()
             # -------------------------------------------------------------------------------------------------------
 
             # ''''''''''''''''''''''*****  Game logic  **'''''''''''''''''''''''''''***
@@ -292,7 +293,7 @@ class SuperAvoider:
             # The destination Surface is cleared by filling the drawn Sprite positions with the background.
             self.all_sprites_group.clear(self.screen, self.background)
             # ----- Update sprites -----
-            self.player_group.update(seconds_passed, self.enemy_group)
+            self.player_group.update(seconds_passed, (self.enemy_group, self.GA.ai_input_size()))
             self.detection_group.update()
             self.enemy_group.update(seconds_passed)  # arg = seconds since last call
 
@@ -320,16 +321,16 @@ class SuperAvoider:
 
 def main():
     # -- Create AI --
-    SA = SuperAvoider(user_play=False, enemies=40, ai_minds=10)
-    fitness = np.zeros(len(SA.ai_minds))  # Create 1D array to hold fitness values
+    SA = SuperAvoider(user_play=False, enemies=40, ai_minds=50)
+    fitness = np.zeros(len(SA.GA.get_pop()))  # Create 1D array to hold fitness values
     individuals = []
-    for player_ai in SA.ai_minds:
-        individuals.append(player_ai.get_brain())
+    for i in range(len(fitness)):
+        individuals.append(SA.GA.get_ind(i))
     # -------------------------------------------------------
     generation, max_gen = 0, 1000
     while generation < max_gen:
         # Perform task for each AI
-        score = SA.start_game(generation=generation, ai_brains=individuals)
+        score = SA.start_game(generation=generation)
         if score is "exit":
             pygame.quit()
             print("Game over\nShutting down...")
@@ -338,11 +339,10 @@ def main():
             for i, val in score:
                 fitness[i] = val
         # Perform evolution through genetic algorithm
-        individuals = GA.breed(individuals, fitness, GA.sel_tournament, GA.co_uniform, GA.mut_gauss,
-                               tournaments=6, tournament_size=5)
+        ga.breed(individuals, fitness, ga.sel_tournament, ga.co_uniform, ga.mut_gauss,
+                 tournaments=20, tournament_size=5)
         # Update the minds of each individual
-        for num, player_ai in enumerate(SA.ai_minds):
-            player_ai.set_brain(individuals[num])
+        SA.GA.set_pop(individuals)
         print("Generation %i Mean fitness %s" % (generation, np.mean(fitness)))
         generation += 1
     print(fitness.tolist())

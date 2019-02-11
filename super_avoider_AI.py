@@ -47,11 +47,6 @@ class SuperAvoiderAI:
         """Print summary"""
         self.model.summary()
 
-    def update_weights(self, new_weights, is_flat):
-        if is_flat:
-            new_weights = self.reshape_flatten_array(new_weights)
-        self.set_weights(new_weights)
-
     def is_numpy(self, x):
         """
         Check if ind is a numpy array
@@ -89,6 +84,17 @@ class SuperAvoiderAI:
         If more than one layer the output will be a list of numpy arrays
         """
         return self.model.get_weights()
+
+    def update_weights(self, new_weights, is_flat):
+        """
+        Update the weights on the model
+        :param new_weights: Numpy array of same shape as model.
+        :param is_flat:
+        :return:
+        """
+        if is_flat:
+            new_weights = self.reshape_flatten_array(new_weights)
+        self.set_weights(new_weights)
 
     def set_weights(self, weights):
         """

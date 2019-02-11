@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-
+from super_avoider_AI import SuperAvoiderAI
 
 def is_numpy(ind):
     """
@@ -273,8 +273,8 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     for i, individual in enumerate(individuals):
         ind_indexes.append(i)
 #        print("Individual", i, individual)
-        if is_numpy(individual):
-            individuals[i] = individual.tolist()
+    if is_numpy(individuals):
+        individuals.tolist()
     if is_numpy(fitness):
         fitness = fitness.tolist()
 
@@ -333,8 +333,58 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
 
 
 class SuperAvoiderGA:
+    """This class is for holding individuals created"""
     def __init__(self):
-        print()
+        self.pop = []
+        self.ai_options = []
+
+    def get_pop(self):
+        """
+        Return population
+        :return: None
+        """
+        return self.pop
+
+    def get_ind(self, i, use_bias=False):
+        """Return 1D list of the neural network weights"""
+        return self.pop[i].get_flatten_weights(use_bias=use_bias)
+
+    def get_ai(self, i):
+        """Return an ai object from population"""
+        return self.pop[i]
+
+    def set_pop(self, individuals):
+        """Update weights of individuals"""
+        for i, ind in enumerate(individuals):
+            self.set_ind(i, individuals[i])
+
+    def set_ind(self, i, ind):
+        """Update weights of neural network"""
+        self.pop[i].update_weights(new_weights=ind, is_flat=True)
+
+    def ai_input_size(self):
+        """Get neural network options"""
+        return self.ai_options[0][0]
+
+    def init_pop(self, size, ai_options):
+        """
+        Initialize the whole population
+        :param size: Integer
+        :param ai_options: List (input_shape, neurons_layer, activations)
+        :return: None
+        """
+        self.ai_options = ai_options
+        for ind in range(size):
+            self.pop.append(SuperAvoiderAI(input_shape=self.ai_options[0], neurons_layer=self.ai_options[1],
+                                           activations=self.ai_options[2]))
+
+    def append_pop(self, ind):
+        """
+        Append to population
+        :param ind: Object
+        :return: None
+        """
+        self.pop.append(ind)
 
 
 def test_stuff():
@@ -393,8 +443,8 @@ if __name__ == '__main__':
         tmp_list = breed(population, score, sel_tournament, co_uniform, mut_gauss, 4, 3)
         score = np.random.random_integers(0, round(steps / 10), 10)
         for individual, ind_list in enumerate(tmp_list):
-            for i, val in enumerate(ind_list):
-                tmp[individual, i, _] = val
+            for K, val in enumerate(ind_list):
+                tmp[individual, K, _] = val
 
     mean_list = np.mean(tmp, axis=2)
     std_list = np.std(tmp, axis=2)

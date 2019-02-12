@@ -267,7 +267,7 @@ def mut_gauss(ind, mut_prob, perturb_size=1.):
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, tournament_size):
+def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, tournament_size, replace_worst):
     # ------- Convert numpy array to list -------
     ind_indexes = []
     for i, individual in enumerate(individuals):
@@ -289,7 +289,6 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     # ---------- Breed parents with population ----------
 
     # -- Elitism variables --
-    worst_id = sel_worst(fitness, 1)[0]
     best_ind = list(individuals[sel_best(fitness, 1)[0]])
     #########################
 
@@ -320,15 +319,17 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
 
     #####################################################
     # ------- Mutate children -------
-    perturb_size = 1 #/ map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
+    perturb_size = 1  # / map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
 #    print("Mean fitness", mean_fitness, "Perturbation size", perturb_size)
     for child in children:
-        mut_prob = 2. / len(individuals[child])  # Average 1 mutation per child
+        mut_prob = 1. / len(individuals[child])  # Average 1 mutation per child
         mut_method(individuals[child], mut_prob, perturb_size)
     #########################################
 #    [print("Individual %i %s" % (i, individual)) for i, individual in enumerate(individuals)]
     # -- Replace worst individual with the best individual
-    individuals[worst_id] = best_ind
+    worst_id = sel_worst(fitness, replace_worst)
+    for i in worst_id:
+        individuals[i] = list(sel_random(individuals, 1)[0])
     return individuals
 
 

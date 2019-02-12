@@ -70,9 +70,10 @@ class SuperAvoider:
         # -- Initialize AIs --
         self.GA = ga.SuperAvoiderGA()
         # - AI options -
-        input_shape = (2 * (1 + self.enemies),)
-        neurons_layer = [5, 5]
-        activations = ["relu", "softmax"]
+        # input size = player (x, y) + enemy (x,y) + collision enemy + distance to enemy
+        input_shape = (2 * (1 + 2 * self.enemies),)
+        neurons_layer = [400, 200, 100, 5]
+        activations = ["relu", "relu", "relu", "softmax"]
         # - Create population of neural networks -
         self.GA.init_pop(size=ai_minds, ai_options=[input_shape, neurons_layer, activations])
         # - Create AI players and connect them to an AI -
@@ -170,12 +171,12 @@ class SuperAvoider:
         # Reset position of enemies
         for enemy in self.enemy_group:
             # Draw positions from top left corner
-            pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)
+            pos = (self.W_WIDTH / 8, self.W_HEIGHT / 8)
             enemy.new_pos(pos)
         # Reset position of players
         for player in self.player_group:
-            pos = (self.W_WIDTH / 2 + self.W_WIDTH / 4,
-                   self.W_HEIGHT / 2 + self.W_HEIGHT / 4)
+            pos = (self.W_HEIGHT / 2 + random.random() * self.W_WIDTH / 2,
+                   self.W_HEIGHT / 2 + random.random() * self.W_HEIGHT / 2)
             player.new_pos(pos)
 
     def restart(self):
@@ -283,7 +284,7 @@ class SuperAvoider:
                 player.remove = True
                 if player.controlled_by_ai:
                     score.append((player.number, player.score))
-                    print("AI %i Score: %.2f" % (player.number, player.score))
+#                    print("AI %i Score: %.2f" % (player.number, player.score))
                 else:
                     print("Player score:  %.2f" % player.score)
             # -------------------------------------------------------------------------------------------------------
@@ -321,7 +322,7 @@ class SuperAvoider:
 
 def main():
     # -- Create AI --
-    SA = SuperAvoider(user_play=False, enemies=40, ai_minds=50)
+    SA = SuperAvoider(user_play=False, enemies=20, ai_minds=20)
     fitness = np.zeros(len(SA.GA.get_pop()))  # Create 1D array to hold fitness values
     individuals = []
     for i in range(len(fitness)):
@@ -340,7 +341,7 @@ def main():
                 fitness[i] = val
         # Perform evolution through genetic algorithm
         ga.breed(individuals, fitness, ga.sel_tournament, ga.co_uniform, ga.mut_gauss,
-                 tournaments=20, tournament_size=5)
+                 tournaments=8, tournament_size=2, replace_worst=1)
         # Update the minds of each individual
         SA.GA.set_pop(individuals)
         print("Generation %i Mean fitness %s" % (generation, np.mean(fitness)))

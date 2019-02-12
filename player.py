@@ -1,6 +1,7 @@
 import pygame
 import random
 import numpy as np
+from numpy.linalg import norm
 from enemy_detection import EnemyDetection
 
 
@@ -82,7 +83,7 @@ class Player(pygame.sprite.Sprite):
         Return automatic step size
         :return:
         """
-        return 10 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
+        return 8 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
     def move(self, step_size=10):
         """ Handles Keys """
@@ -116,6 +117,33 @@ class Player(pygame.sprite.Sprite):
         self.rect.centerx = round(self.x_pos, 0)
         self.rect.centery = round(self.y_pos, 0)
 
+    def detect_collision(self, enemy):
+        """
+        Detect if the angle between the enemy velocity vector and the vector to
+
+        Point 1 (p1) represent the player
+        Point 2 (p2) represent the enemy
+        :param enemy: Enemy object
+        :return: +1 (true) if a collision will occur. Otherwise return -1 (false)
+        """
+        # Vector from enemy to player
+        p2p1_vec = np.array([self.rect.centerx - enemy.rect.centerx, self.rect.centery - enemy.rect.centery])
+        p2_vel_vec = np.array([enemy.vx, enemy.vy])
+        # Norm of vectors
+        p2p1_norm = norm(p2p1_vec)
+        p2_vel_norm = norm(p2_vel_vec)
+        # Angle between p2p1 vector and p2 velocity vector
+        theta = np.arccos(np.dot(p2_vel_vec, p2p1_vec) / (p2_vel_norm * p2p1_norm))
+        # Radius of Player and Enemy (Approximates both as circles)
+        r1 = np.sqrt(self.rect.width * self.rect.width + self.rect.height * self.rect.height) / 2
+        r2 = np.sqrt(enemy.rect.width * enemy.rect.width + enemy.rect.height * enemy.rect.height) / 2
+        # Critical angle
+        theta_c = np.arctan((r1 + r2) / p2p1_norm)
+        if 0 < theta <= theta_c:
+            return 1, (p2p1_norm - r1 - r2) / np.sqrt(self.area.width*self.area.width + self.area.height * self.area.height)
+        else:
+            return -1, (p2p1_norm - r1 - r2) / np.sqrt(self.area.width*self.area.width + self.area.height * self.area.height)
+
     def ai_decision(self, ai_input):
         """
         Create 1D array consisting of all player and enemy positions. Scaled by game windows width and height
@@ -128,9 +156,12 @@ class Player(pygame.sprite.Sprite):
         sprite_positions[0] = self.rect.centerx / self.area.width  # Distance from left wall
         sprite_positions[1] = self.rect.centery / self.area.height  # Distance from top wall
         for i, enemy in enumerate(ai_input[0]):
-            # Enemy position relative to player
-            sprite_positions[i + 1] = np.abs(enemy.rect.centerx / self.area.width - sprite_positions[0])
-            sprite_positions[i + 2] = np.abs(enemy.rect.centery / self.area.height - sprite_positions[1])
+            # Collision: [-1, 1]. Distance: Float.
+            collision, distance = self.detect_collision(enemy)
+            sprite_positions[i + 1] = enemy.x_pos / self.area.width  # Normalized enemy x pos
+            sprite_positions[i + 2] = enemy.y_pos / self.area.height  # Normalized enemy y pos
+            sprite_positions[i + 3] = 1 / distance  # Normalized distance between enemy and player
+            sprite_positions[i + 4] = collision  # +1 (true) or -1 (false)
         sprite_positions.shape = (1, -1)
         # ---------------------------------------------------------------------------------------------------
         return self.ai_mind.get_predict(sprite_positions, classify=True)[0]

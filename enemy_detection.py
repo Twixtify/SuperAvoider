@@ -28,6 +28,15 @@ class EnemyDetection(pygame.sprite.Sprite):
         EnemyDetection.total_number += 1  # increase the number for next Enemy
         EnemyDetection.devices[self.number] = self  # store myself into the Enemy dictionary
 
+    def scan(self, sprites):
+        """
+        Scan for detection
+        :param sprites: Pygame sprite objects. Potential enemies inside surface of EnemyDetection
+        :return: Dictionary of detected sprites
+        """
+        return pygame.sprite.spritecollide(EnemyDetection.devices[self.number], sprites,
+                                           False, pygame.sprite.collide_circle)
+
     def kill(self):
         # Remove object from dictionary
         EnemyDetection.devices[self.number] = None  # kill object in sprite dictionary

@@ -42,7 +42,7 @@ class Enemy(pygame.sprite.Sprite):
         Return automatic step size
         :return:
         """
-        return 500 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
+        return 600 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
     def new_pos(self, pos):
         """

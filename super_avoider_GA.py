@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from super_avoider_AI import SuperAvoiderAI
 
+
 def is_numpy(ind):
     """
     Check if ind is a numpy array
@@ -287,11 +288,11 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     #################################
 
     # ---------- Breed parents with population ----------
-
     # -- Elitism variables --
-    best_ind = list(individuals[sel_best(fitness, 1)[0]])
-    #########################
-
+    best_ind = sel_best(fitness, replace_worst)
+    worst_id = sel_worst(fitness, replace_worst)
+    for i, j in enumerate(worst_id):
+        individuals[i] = individuals[best_ind[i]]
     # -- Perform Crossover --
     breed_only_winners = True
     children = ()
@@ -322,14 +323,11 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     perturb_size = 1  # / map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
 #    print("Mean fitness", mean_fitness, "Perturbation size", perturb_size)
     for child in children:
-        mut_prob = 1. / len(individuals[child])  # Average 1 mutation per child
+        mut_prob = 0.005  # 1. / len(individuals[child])  # Average 1 mutation per child
         mut_method(individuals[child], mut_prob, perturb_size)
     #########################################
 #    [print("Individual %i %s" % (i, individual)) for i, individual in enumerate(individuals)]
     # -- Replace worst individual with the best individual
-    worst_id = sel_worst(fitness, replace_worst)
-    for i in worst_id:
-        individuals[i] = list(sel_random(individuals, 1)[0])
     return individuals
 
 

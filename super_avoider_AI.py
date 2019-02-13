@@ -1,6 +1,6 @@
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Dense
+from keras.layers import Input, Dense, initializers
 
 
 class SuperAvoiderAI:
@@ -34,13 +34,16 @@ class SuperAvoiderAI:
             print("Must have an activaiton function for each layer!")
             print("Number of activations and layers: (%i, %i)" % (len(activations), len(neurons_layer)))
             exit(1)
-        self.use_bias = False
         self.input_layer = Input(shape=input_shape)
         for i in range(len(neurons_layer)):
             if i == 0:
-                self.output_layers = Dense(units=neurons_layer[i], activation=activations[i])(self.input_layer)
+                self.output_layers = Dense(units=neurons_layer[i],
+                                           activation=activations[i],
+                                           kernel_initializer=initializers.uniform(minval=-1, maxval=1))(self.input_layer)
             else:
-                self.output_layers = Dense(units=neurons_layer[i], activation=activations[i])(self.output_layers)
+                self.output_layers = Dense(units=neurons_layer[i],
+                                           activation=activations[i],
+                                           kernel_initializer=initializers.uniform(minval=-1, maxval=1))(self.output_layers)
         self.model = Model(self.input_layer, self.output_layers)
 
     def model_summary(self):

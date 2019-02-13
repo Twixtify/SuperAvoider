@@ -24,7 +24,6 @@ class Player(pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         # ---- Create hitbox the size of the player image at it's starting location
         self.rect = self.image.get_rect(center=(round(self.x_pos), round(self.y_pos)))
-#        self.radius = max(self.rect.width, self.rect.height) * 2.0
         # ---- Flag for Game Over
         self.remove = False
         # ---- Update static variables -----
@@ -35,7 +34,7 @@ class Player(pygame.sprite.Sprite):
 
     def new_pos(self, pos):
         """
-        Call this function to update position of player
+        Call this function to update position
         :param pos: Tuple
         :return:
         """
@@ -59,7 +58,7 @@ class Player(pygame.sprite.Sprite):
         Return automatic step size
         :return:
         """
-        return 10 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
+        return 8 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
     def move(self, step_size=10):
         """ Handles Keys """
@@ -103,12 +102,12 @@ class Player(pygame.sprite.Sprite):
         elif not self.area.contains(self.rect):
             self.remove = True
 
-    def update(self, time_alive, ai_input=None):
+    def update(self, time_alive, *args):
         """
         Function called when
         :param time_alive: Argument must be provided when pygame.sprite.Group.update(*args) is called on this group
         This parameter represents the time passed since the last call to update()
-        :param ai_input: Tuple of object and integer (ai_input, ai_input_size)
+        :param ai_input: So all_sprites_group can be used to update sprites
         :return: None
         """
         # Reset image

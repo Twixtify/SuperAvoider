@@ -62,7 +62,7 @@ def map_to_interval(t, old_range, new_range):
 # ---------------------------------------------------------------------------------------------------------------------
 
 
-def co_uniform(ind1, ind2, co_prob=0.5):
+def co_uniform(ind1, ind2, co_prob=0.5, modify_in_place=False):
     """
     Uniform crossover. Each individual keep their length.
     Note that this method modify the incoming lists.
@@ -81,10 +81,12 @@ def co_uniform(ind1, ind2, co_prob=0.5):
         else:
             co_ind1.append(ind1[gene])
             co_ind2.append(ind2[gene])
-    # This assignment works for both numpy arrays and lists
-    ind1[:size] = co_ind1
-    ind2[:size] = co_ind2
-    return ind1, ind2
+    if modify_in_place:
+        # This assignment works for both numpy arrays and lists
+        ind1[:size] = co_ind1
+        ind2[:size] = co_ind2
+        return ind1, ind2
+    return co_ind1, co_ind2
 
 
 def co_one_point(ind1, ind2):
@@ -262,7 +264,10 @@ def mut_gauss(ind, mut_prob, perturb_size=1.):
     """
     for i, val in enumerate(ind):
         if random.random() <= mut_prob:
-            ind[i] = val + perturb_size * random.gauss(0, 1)
+            if random.random() < 0.75:  # 75% of the time make a random gaussian change
+                ind[i] = val + perturb_size * random.gauss(0, 0.1)
+            else:
+                ind[i] = 2 * random.random() - 1  # Pick new random value between -1 and 1
     return ind
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -270,12 +275,8 @@ def mut_gauss(ind, mut_prob, perturb_size=1.):
 
 def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, tournament_size, replace_worst):
     # ------- Convert numpy array to list -------
-    ind_indexes = []
-    for i, individual in enumerate(individuals):
-        ind_indexes.append(i)
-#        print("Individual", i, individual)
     if is_numpy(individuals):
-        individuals.tolist()
+        individuals = individuals.tolist()
     if is_numpy(fitness):
         fitness = fitness.tolist()
 
@@ -288,46 +289,38 @@ def breed(individuals, fitness, sel_method, co_method, mut_method, tournaments, 
     #################################
 
     # ---------- Breed parents with population ----------
-    # -- Elitism variables --
-    best_ind = sel_best(fitness, replace_worst)
+    # -- Elitism --
     worst_id = sel_worst(fitness, replace_worst)
-    for i, j in enumerate(worst_id):
-        individuals[i] = individuals[best_ind[i]]
+    best_id = sel_best(fitness, replace_worst)
+    for worst, best in zip(worst_id, best_id):
+        individuals[worst] = individuals[best]
     # -- Perform Crossover --
-    breed_only_winners = True
     children = ()
-    if breed_only_winners:
-        # If the length och parents is not even, pad it by adding the best individual
-        if len(parents) % 2 != 0:
-            parents.append(sel_best(fitness, 1)[0])
-            random.shuffle(parents)
-        for i, parent in enumerate(parents):
-            # Combine parents from either end of parents list
-            if i < np.floor(len(parents) / 2):  # Check to avoid breeding one parent multiple times
-                co_method(individuals[parents[i]], individuals[parents[-i-1]])
-                children += (parents[i], parents[-i-1])
-    else:
-        not_parents = unique_list(ind_indexes, parents)
-        random.shuffle(not_parents)
-        # Crossover between parents and non-parents
-        for i, val in enumerate(not_parents):
-            if i < len(parents):
-                co_method(individuals[val], individuals[parents[i]])
-                children += (val, parents[i])
-#               print("Crossover performed on: (", val, ",", parents[i], ")")
-#    [print("Child %i %s" % (child, individuals[child])) for child in children]
+    # If the length och parents is not even, pad it by adding the best individual
+    if len(parents) % 2 != 0:
+        parents.append(sel_best(fitness, 1)[0])
+        random.shuffle(parents)
+    for i, parent in enumerate(parents):
+        # Combine parents from either end of parents list
+        if i < np.floor(len(parents) / 2):  # Check to avoid breeding one parent multiple times
+            child1, child2 = co_method(individuals[parents[i]], individuals[parents[-i-1]])
+            children += (child1, child2)
     ###############################################################################################
 
     #####################################################
     # ------- Mutate children -------
-    perturb_size = 1  # / map_to_interval(np.mean(fitness), [0, 1000], [0.1, 10])
 #    print("Mean fitness", mean_fitness, "Perturbation size", perturb_size)
     for child in children:
-        mut_prob = 0.005  # 1. / len(individuals[child])  # Average 1 mutation per child
-        mut_method(individuals[child], mut_prob, perturb_size)
+        # mut_prob = 1. / len(individuals[child])  # Average 1 mutation per child
+        mut_method(ind=child, mut_prob=0.5, perturb_size=1)
     #########################################
 #    [print("Individual %i %s" % (i, individual)) for i, individual in enumerate(individuals)]
-    # -- Replace worst individual with the best individual
+    # -- Replace non-parents
+    j = 0
+    for i in range(len(individuals)):
+        if (i not in parents) and (j < len(parents)):
+            individuals[i] = children[j]
+            j += 1
     return individuals
 
 
@@ -353,7 +346,10 @@ class SuperAvoiderGA:
         return self.pop[i]
 
     def set_pop(self, individuals):
-        """Update weights of individuals"""
+        """
+        Update weights of individuals
+        Note that
+        """
         for i, ind in enumerate(individuals):
             self.set_ind(i, individuals[i])
 
@@ -439,7 +435,7 @@ if __name__ == '__main__':
     steps = 10000
     tmp = np.zeros((len(population), 4, steps))
     for _ in range(steps):
-        tmp_list = breed(population, score, sel_tournament, co_uniform, mut_gauss, 4, 3)
+        tmp_list = breed(population, score, sel_tournament, co_uniform, mut_gauss, 4, 3, 1)
         score = np.random.random_integers(0, round(steps / 10), 10)
         for individual, ind_list in enumerate(tmp_list):
             for K, val in enumerate(ind_list):

@@ -45,7 +45,13 @@ class EnemyDetection(pygame.sprite.Sprite):
         # Call super method to remove object
         pygame.sprite.Sprite.kill(self)
 
-    def update(self):
+    def update(self, *args):
+        """
+        Note that the provided arguments are not used
+        :param time_alive: Not used
+        :param ai_input: Not used
+        :return:
+        """
         # -- Check if Game Over --
         if self.remove:
             self.kill()  # Game over

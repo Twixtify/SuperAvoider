@@ -42,7 +42,7 @@ class Enemy(pygame.sprite.Sprite):
         Return automatic step size
         :return:
         """
-        return 600 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
+        return 300 * max(round(self.area.width / self.area.height), round(self.area.height / self.area.width))
 
     def new_pos(self, pos):
         """
@@ -75,19 +75,7 @@ class Enemy(pygame.sprite.Sprite):
             self.vx = random_direction * random.gauss(0, 1) * self.speed_max + random_direction
             self.vy = random_direction * random.gauss(0, 1) * self.speed_max + random_direction
 
-    def update(self, seconds_passed):
-        """
-        Function called when
-        :param seconds_passed: Argument must be provided when pygame.sprite.Group.update(*args) is called on enemy group
-        This parameter represents the time passed since the last call to update()
-        :return: None
-        """
-        # Move enemy to new position since last call: distance = speed * time
-        self.x_pos += self.vx * seconds_passed
-        self.y_pos += self.vy * seconds_passed
-        # ---- Updated coordinates for sprite hitbox
-        self.rect.centerx = round(self.x_pos, 0)
-        self.rect.centery = round(self.y_pos, 0)
+    def out_of_bound(self):
         # Set image of enemy
         self.image = Enemy.image[0]
         # -- check if out of screen
@@ -113,6 +101,24 @@ class Enemy(pygame.sprite.Sprite):
                 self.image = Enemy.image[2]  # blue rectangle
             else:
                 self.image = Enemy.image[0]  # normal bird image
+
+    def update(self, seconds_passed, *args):
+        """
+        Function called when
+        :param seconds_passed: Argument must be provided when pygame.sprite.Group.update(*args) is called on enemy group
+        This parameter represents the time passed since the last call to update()
+        :param args: So you may update all sprites at the same time
+        :return: None
+        """
+        # Move enemy to new position since last call: distance = speed * time
+        self.x_pos += self.vx * seconds_passed
+        self.y_pos += self.vy * seconds_passed
+        # ---- Updated coordinates for sprite hitbox
+        self.rect.centerx = round(self.x_pos, 0)
+        self.rect.centery = round(self.y_pos, 0)
+        # Check boundary
+        self.out_of_bound()
+
 
 if __name__ == '__main__':
     pygame.init()

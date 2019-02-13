@@ -73,8 +73,8 @@ class SuperAvoider:
         # -- Initialize AIs --
         self.GA = ga.SuperAvoiderGA()
         # - AI options -
-        # input size = player (x, y) + enemy (x,y) + collision enemy
-        input_shape = (2 + 3 * self.enemies,)
+        # input size = player (x,y) + enemy (x,y) + collision enemy + enemy (vx,vy)
+        input_shape = (2 + 5 * self.enemies,)
         neurons_layer = [10, 10, 5]
         activations = ["relu", "relu", "softmax"]
         # - Create population of neural networks -
@@ -86,7 +86,7 @@ class SuperAvoider:
         self.reset_pos(players=True, players_ai=True, enemies=True)
 
     def load_background(self, *args):
-        self.background_colour = (random.randint(0, 244), random.randint(0, 244), random.randint(0, 244))
+        self.background_colour = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
         self.background = pygame.Surface((self.screen.get_width(), self.screen.get_height()))  # Surface which graphic
         self.background.fill(self.background_colour)  # Background colour
         self.background.blit(self.write("Press ESC or Q to quit"), (5, 10))
@@ -155,7 +155,15 @@ class SuperAvoider:
         :return: None
         """
         for enemy in range(enemies):
-            pos = (random.random() * self.W_WIDTH, random.random() * self.W_HEIGHT)
+            r = random.random()
+            if r < 0.25:
+                pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)  # Top left corner
+            elif r < 0.5:
+                pos = (3 * self.W_WIDTH / 4, self.W_HEIGHT / 4)  # Top right corner
+            elif r < 0.75:
+                pos = (self.W_WIDTH / 4, 3 * self.W_HEIGHT / 4)  # Bottom left corner
+            else:
+                pos = (3 * self.W_WIDTH / 4, 3 * self.W_HEIGHT / 4)  # Bottom right corner
             # Draw positions from top left corner
             Enemy(start_pos=pos, game_display=self.background)
 
@@ -194,8 +202,15 @@ class SuperAvoider:
         # Reset position of enemies
         if enemies:
             for enemy in self.enemy_group:
-                # Draw positions from top left corner
-                pos = (random.random() * self.W_WIDTH, random.random() * self.W_HEIGHT)
+                r = random.random()
+                if r < 0.25:
+                    pos = (self.W_WIDTH / 4, self.W_HEIGHT / 4)  # Top left corner
+                elif r < 0.5:
+                    pos = (3 * self.W_WIDTH / 4, self.W_HEIGHT / 4)  # Top right corner
+                elif r < 0.75:
+                    pos = (self.W_WIDTH / 4, 3 * self.W_HEIGHT / 4)  # Bottom left corner
+                else:
+                    pos = (3 * self.W_WIDTH / 4, 3 * self.W_HEIGHT / 4)  # Bottom right corner
                 enemy.new_pos(pos)
 
     def restart(self):
@@ -271,59 +286,60 @@ class SuperAvoider:
         # Start a timer
         self.clock = pygame.time.Clock()
         # -------- Main Program Loop ---------
-        score = []  # (player number, player score)
+        score = []  # (AI number, AI score)
+        cycles = 3  # How many cycles of game logic should be had before drawing to screen
         self.exit_game = False
         self.players_alive = True
         while self.players_alive:
             # **''''''''''''''''''''*** Main Event Loop *****''''''''''''''''''''''****
             self.event_handle()
             # -------------------------------------------------------------------------------------------------------
+            for frame in range(cycles):
+                if cycles > self.FPS:  # Just for safety
+                    self.event_handle()
+                # ''''''''''''''''''''''*****  Game logic  **'''''''''''''''''''''''''''***
+                # ----- collision detection -----
+                # Reset all Enemy sprites to not detected
+                for enemy in self.enemy_group:
+                    enemy.detected = False
 
-            # ''''''''''''''''''''''*****  Game logic  **'''''''''''''''''''''''''''***
+                # pygame.sprite.groupcollide(group1, group2, dokill1, dokill2, collided = None):
+                # return dictionary of Sprites in group1 that collide with group2
+                # pygame.sprite.collide_circle works only if one sprite has self.radius
+                # No argument collided yield self.rects will be checked
+                detected_dict = pygame.sprite.groupcollide(self.enemy_group, self.detection_group, False, False,
+                                                           pygame.sprite.collide_circle)
+                # Return all players that collided with an enemy
+                player_gameover_dict = pygame.sprite.groupcollide(self.player_group, self.enemy_group, False, False)
+                # Return all player AIs that collided with an enemy
+                ai_gameover_dict = pygame.sprite.groupcollide(self.ai_group, self.enemy_group, False, False)
+                # -------------------------------------------------------------------------------------
 
-            # ----- collision detection -----
-            # Reset all Enemy sprites to not detected
-            for enemy in self.enemy_group:
-                enemy.detected = False
-
-            # pygame.sprite.groupcollide(group1, group2, dokill1, dokill2, collided = None):
-            # return dictionary of Sprites in group1 that collide with group2
-            # pygame.sprite.collide_circle works only if one sprite has self.radius
-            # No argument collided yield self.rects will be checked
-            detected_dict = pygame.sprite.groupcollide(self.enemy_group, self.detection_group, False, False,
-                                                       pygame.sprite.collide_circle)
-            # Return all players that collided with an enemy
-            player_gameover_dict = pygame.sprite.groupcollide(self.player_group, self.enemy_group, False, False)
-            # Return all player AIs that collided with an enemy
-            ai_gameover_dict = pygame.sprite.groupcollide(self.ai_group, self.enemy_group, False, False)
+                # ----- Calculate score -----
+                seconds_passed = self.clock.tick(self.FPS) / 1000.0
+                # ----- Flag players to be removed -----
+                # Use blue border on enemies inside the hitbox of enemy_detection
+                for enemy in detected_dict:
+                    enemy.detected = True
+                # Flag player to be removed
+                for player in player_gameover_dict:
+                    player.remove = True
+                    print("Player score:  %.2f" % player.score)
+                # Flag AI to be removed
+                for player_ai in ai_gameover_dict:
+                    player_ai.remove = True
+                    score.append((player_ai.number, player_ai.score))
+#                    print("AI %i Score: %.2f" % (player_ai.number, player_ai.score))
+                self.all_sprites_group.update(seconds_passed, (self.enemy_group, self.GA.ai_input_size()))
             # -------------------------------------------------------------------------------------------------------
 
-            # ----- Calculate score -----
-            seconds_passed = self.clock.tick(self.FPS) / 1000.0
-            # ----- Flag players to be removed -----
-            # Use blue border on enemies inside the hitbox of enemy_detection
-            for enemy in detected_dict:
-                enemy.detected = True
-            # Flag player to be removed
-            for player in player_gameover_dict:
-                player.remove = True
-                print("Player score:  %.2f" % player.score)
-            # Flag AI to be removed
-            for player_ai in ai_gameover_dict:
-                player_ai.remove = True
-                score.append((player_ai.number, player_ai.score))
-                print("AI %i Score: %.2f" % (player_ai.number, player_ai.score))
-            # -------------------------------------------------------------------------------------------------------
+            # ***''''''''''''''*** Draw logic ***'''''''''''''''''''***
 
             # ----- Clear sprites from screen -----
             # Erase sprites from last Group.draw() call.
             # The destination Surface is cleared by filling the drawn Sprite positions with the background.
             self.all_sprites_group.clear(self.screen, self.background)
             # ----- Update sprites -----
-            self.player_group.update(seconds_passed)
-            self.ai_group.update(seconds_passed, (self.enemy_group, self.GA.ai_input_size()))
-            self.detection_group.update()
-            self.enemy_group.update(seconds_passed)  # arg = seconds since last call
 
             # ----- Draw sprites to screen -----
             # Draws Sprites to the Surface argument.
@@ -335,7 +351,8 @@ class SuperAvoider:
             pygame.display.flip()
             # Display useful information
             pygame.display.set_caption("[FPS]: %.2f Time: %i Players: %i" %
-                                       (self.clock.get_fps(), round(time.clock()), len(self.player_group)))
+                                       (self.clock.get_fps(), round(time.clock()),
+                                        len(self.player_group) + len(self.ai_group)))
             # ----- Limit to 'FPS' frames per second ----
             self.clock.tick(self.FPS)
             # ----- Game over condition ------
@@ -350,7 +367,7 @@ class SuperAvoider:
 def main():
     np.random.seed()
     # -- Create AI --
-    SA = SuperAvoider(user_play=False, enemies=8, ai_minds=20)
+    SA = SuperAvoider(user_play=False, enemies=8, ai_minds=60)
     fitness = np.zeros(len(SA.GA.get_pop()))  # Create 1D array to hold fitness values
     individuals = []
     for i in range(len(fitness)):
@@ -369,7 +386,7 @@ def main():
                 fitness[i] = val
         # Perform evolution through genetic algorithm
         ga.breed(individuals, fitness, ga.sel_tournament, ga.co_uniform, ga.mut_gauss,
-                 tournaments=10, tournament_size=4, replace_worst=5)
+                 tournaments=12, tournament_size=4, replace_worst=6)
         # Update the minds of each individual
         SA.GA.set_pop(individuals)
         print("Generation %i Mean fitness %s" % (generation, np.mean(fitness)))
